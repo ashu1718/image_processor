@@ -4,7 +4,13 @@ import pandas as pd
 import uuid
 from .models import Product
 from .tasks import process_images
+from concurrent.futures import ThreadPoolExecutor
+thread_pool = ThreadPoolExecutor(max_workers=10)   #thread pool for async execution
 
+
+"""
+API view for uploading a csv file and making async process request
+"""
 @csrf_exempt
 def upload_csv(request):
     print(request.FILES)
@@ -13,6 +19,8 @@ def upload_csv(request):
         
         try:
             df = pd.read_csv(file)
+
+            #format validation
             if not all(col in df.columns for col in ['Serial Number', 'Product Name', 'Input Image Urls']):
                 return JsonResponse({"error": "Invalid CSV format"}, status=400)
 
@@ -28,15 +36,21 @@ def upload_csv(request):
                         status='Pending'
                     )
                     product.save()
+            """
+            NOTE: here it is submitting this task to the pool, 
+            if any thread is free then the task is performed. 
+            otherwise, it gets stored in the queue and wait for thread to become free.
+            """
+            thread_pool.submit(process_images, request_id)
 
-            # Asynchronously process the images
-            print("process started")
-            process_images.apply_async(args=[request_id])
-            print("process dont know")
             return JsonResponse({"request_id": request_id}, status=200)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
+
+"""
+API view for ckecking status of particular request_id
+"""
 def check_status(request, request_id):
     try:
         products = Product.objects.filter(request_id=request_id)
