@@ -1,0 +1,7 @@
+celery
+requests
+Django
+pandas
+pillow
+redis
+billiard
